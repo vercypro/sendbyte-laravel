@@ -1,7 +1,14 @@
 {
-    "name": "sendbyte/sendbyte-laravel",
+    "name": "sendbyte/laravel",
     "description": "Laravel integration for the SendByte Africa transactional email API: a Mail driver, a direct API client, and signed webhook handling.",
-    "keywords": ["laravel", "sendbyte", "email", "africa", "transactional-email", "webhooks"],
+    "keywords": [
+        "laravel",
+        "sendbyte",
+        "email",
+        "africa",
+        "transactional-email",
+        "webhooks"
+    ],
     "homepage": "https://sendbyte.africa",
     "license": "MIT",
     "type": "library",

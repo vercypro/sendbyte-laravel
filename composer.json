@@ -9,6 +9,14 @@
         "transactional-email",
         "webhooks"
     ],
+    "authors": [
+        {
+            "name": "Vercy",
+            "email": "mailvercy@gmail.com",
+            "homepage": "http://vercy.fun",
+            "role": "Developer"
+        }
+    ],
     "homepage": "https://sendbyte.africa",
     "license": "MIT",
     "type": "library",

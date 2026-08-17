@@ -1,5 +1,5 @@
 {
-    "name": "vercypro/sendbyte-laravel",
+    "name": "vercy/sendbyte-laravel",
     "description": "Laravel integration for the SendByte Africa transactional email API: a Mail driver, a direct API client, and signed webhook handling.",
     "keywords": [
         "laravel",

@@ -11,7 +11,7 @@ Laravel integration for the [SendByte Africa](https://sendbyte.africa) transacti
 ## Installation
 
 ```bash
-composer require sendbyte/sendbyte-laravel
+composer require vercy/sendbyte-laravel
 ```
 
 The service provider and `Sendbyte` facade are auto-discovered. Publish the config if you want to tweak it:

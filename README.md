@@ -1,4 +1,8 @@
-# SendByte Laravel
+# SendByte Laravel by Vercy
+
+[![Latest Version](https://img.shields.io/packagist/v/vercy/sendbyte-laravel.svg)](https://packagist.org/packages/vercy/sendbyte-laravel)
+[![License](https://img.shields.io/packagist/l/vercy/sendbyte-laravel.svg)](https://packagist.org/packages/vercy/sendbyte-laravel)
+[![Total Downloads](https://img.shields.io/packagist/dt/vercy/sendbyte-laravel.svg)](https://packagist.org/packages/vercy/sendbyte-laravel)
 
 Laravel integration for the [SendByte Africa](https://sendbyte.africa) transactional email API. Gives you three things:
 
@@ -7,6 +11,23 @@ Laravel integration for the [SendByte Africa](https://sendbyte.africa) transacti
 3. **Webhook handling** — a route, signature verification, and Laravel events for SendByte's delivery lifecycle.
 
 > This package talks to SendByte's REST API directly over Laravel's HTTP client — it doesn't depend on the official `sendbyte/sendbyte-php` SDK, so there's nothing extra to configure beyond your API key.
+
+## Requirements
+
+- PHP `^8.1`
+- Laravel `10.x`, `11.x`, `12.x`, or `13.x`
+
+## Contents
+
+- [Installation](#installation)
+- [Sending mail via the Mail driver](#sending-mail-via-the-mail-driver)
+- [Sending without a Mailable](#sending-without-a-mailable)
+- [Using the API client directly](#using-the-api-client-directly)
+- [Webhooks](#webhooks)
+- [Verifying your setup](#verifying-your-setup)
+- [Common errors](#common-errors)
+- [Testing](#testing)
+- [License](#license)
 
 ## Installation
 
@@ -25,6 +46,8 @@ Add your key (from [app.sendbyte.africa](https://app.sendbyte.africa)) to `.env`
 ```env
 SENDBYTE_API_KEY=sk_test_xxxxxxxxxxxxxxxx
 ```
+
+Use an `sk_test_...` key while you're getting set up — it doesn't require a verified sending domain. Switch to an `sk_live_...` key once your domain is verified and you're sending real traffic.
 
 ## Sending mail via the Mail driver
 
@@ -46,7 +69,7 @@ MAIL_FROM_ADDRESS="you@yourapp.ng"
 MAIL_FROM_NAME="Your App"
 ```
 
-Then send like normal:
+Then send like normal, using a Mailable:
 
 ```php
 Mail::to('anyone@example.ng')->send(new OrderReceipt($order));
@@ -54,9 +77,31 @@ Mail::to('anyone@example.ng')->send(new OrderReceipt($order));
 
 Attachments, CC/BCC, reply-to, and HTML/text bodies are all translated to SendByte's payload shape automatically.
 
+## Sending without a Mailable
+
+For quick or one-off sends, `Mail::raw()` and `Mail::html()` work too:
+
+```php
+// Plain text
+Mail::mailer('sendbyte')->raw('Your order has shipped.', function ($message) {
+    $message->to('anyone@example.ng')
+             ->from('you@yourapp.ng')
+             ->subject('Shipping update');
+});
+
+// HTML
+Mail::mailer('sendbyte')->html('<h4>Order shipped</h4><p>Track it here.</p>', function ($message) {
+    $message->to('anyone@example.ng')
+             ->from('you@yourapp.ng')
+             ->subject('Shipping update');
+});
+```
+
+If `MAIL_MAILER=sendbyte` is already set in `.env`, you can drop `mailer('sendbyte')` and just call `Mail::raw(...)` / `Mail::html(...)` directly.
+
 ## Using the API client directly
 
-For anything outside a Mailable — one-off sends, checking delivery status, idempotent retries:
+For anything outside the Mail layer — checking delivery status, idempotent retries, listing sends:
 
 ```php
 use Sendbyte\Laravel\Facades\Sendbyte;
@@ -73,7 +118,27 @@ $status = Sendbyte::getEmail($email['id']);
 Sendbyte::listEmails(['status' => 'bounced', 'limit' => 20]);
 ```
 
-Failures throw `Sendbyte\Laravel\Exceptions\SendbyteException`, which exposes `errorCode()`, `errorPayload()`, and `docsUrl()` from SendByte's error envelope.
+Failures throw `Sendbyte\Laravel\Exceptions\SendbyteException`:
+
+```php
+use Sendbyte\Laravel\Exceptions\SendbyteException;
+
+try {
+    Sendbyte::sendEmail([
+        'from'    => 'You <you@yourapp.ng>',
+        'to'      => 'anyone@example.ng',
+        'subject' => 'Your OTP',
+        'html'    => '<p>Your code is 483920.</p>',
+    ]);
+} catch (SendbyteException $e) {
+    report($e);
+
+    // $e->getMessage()   — human-readable message, includes SendByte's error code
+    // $e->errorCode()    — e.g. "validation_error"
+    // $e->errorPayload() — the full decoded error response
+    // $e->docsUrl()      — link to SendByte's docs for this error, if provided
+}
+```
 
 You can also resolve `Sendbyte\Laravel\Sendbyte` from the container instead of using the facade, e.g. for constructor injection.
 
@@ -105,9 +170,9 @@ protected $listen = [
 
 Every lifecycle event (`EmailQueued`, `EmailSent`, `EmailDelivered`, `EmailDeliveryDelayed`, `EmailBounced`, `EmailComplained`, `EmailOpened`, `EmailClicked`, `EmailFailed`) exposes `$event->data` (the event's `data` object), `$event->payload` (the full raw payload), `$event->emailId()`, and `$event->to()`.
 
-### Double-check the webhook header names
+### Webhook header names
 
-I built signature verification against HMAC-SHA256 over the raw request body, which is how SendByte's docs describe their webhooks (signed, replayable, 9 lifecycle events) — but I couldn't confirm the *exact* header names SendByte uses for the signature and timestamp from their public docs. Before going live:
+Signature verification uses HMAC-SHA256 over the raw request body, matching how SendByte describes its webhooks (signed, replayable, 9 lifecycle events). Header names are configurable in `config/sendbyte.php` rather than hardcoded, since providers vary here — confirm the exact names against a real test event before relying on this in production:
 
 1. Create a webhook endpoint in the SendByte dashboard and trigger a test event.
 2. Check the actual header name(s) on the incoming request.
@@ -129,6 +194,29 @@ If SendByte signs a `timestamp.body` string rather than just the raw body, that'
 ```
 
 Set `enabled` to `false` if you'd rather register the route and controller yourself.
+
+## Verifying your setup
+
+Quick smoke test after install — run `php artisan tinker`:
+
+```php
+Sendbyte\Laravel\Facades\Sendbyte::sendEmail([
+    'from'    => 'you@yourdomain.com',
+    'to'      => 'you@yourdomain.com',
+    'subject' => 'Test from tinker',
+    'html'    => '<p>It works</p>',
+]);
+```
+
+A successful call returns an array containing an `id`. Anything else — an exception, a validation error — means something in your key, domain verification, or config needs attention before you wire it into real code.
+
+## Common errors
+
+**"Domain not verified" / send rejected** — the address in `from` must be on a domain you've verified in your SendByte dashboard. `sk_test_...` keys are more permissive; `sk_live_...` keys enforce this strictly.
+
+**Composer can't resolve a version** — if you're installing straight off a `dev-main` branch with no tagged release, either require it explicitly (`composer require vercy/sendbyte-laravel:dev-main`) or, better, use a tagged version (`^1.0`) once one's published — dev branches can introduce breaking changes without a version bump.
+
+**`SendbyteException` with no useful message** — call `$e->errorPayload()` to see SendByte's full raw error response; the top-level message is a summary and may omit field-level detail.
 
 ## Testing
 
